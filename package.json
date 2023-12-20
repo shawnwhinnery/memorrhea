@@ -1,0 +1,16 @@
+{
+  "name": "memorrhea",
+  "module": "memory.ts",
+  "type": "module",
+  "prettier": {
+    "tabWidth": 4,
+    "semi": false,
+    "singleQuote": true
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
