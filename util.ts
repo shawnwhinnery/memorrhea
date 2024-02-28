@@ -12,10 +12,3 @@ export function debounce(
         }, delay)
     }
 }
-
-export const nextId = (function* () {
-    var index = 0
-    while (true) {
-        yield index
-    }
-})()

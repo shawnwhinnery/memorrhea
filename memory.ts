@@ -15,7 +15,7 @@ export interface Options {
     addressMap?: boolean
 }
 
-export function Memory(options?: Options) {
+export function block(options?: Options) {
     const /*
          * MEMORY: WeakMap to store associations between pointers and values.
          * WeakMaps don't prevent their keys (pointers in this case) from being garbage
@@ -33,18 +33,12 @@ export function Memory(options?: Options) {
         // I may remove this. It isn't really used and could be implemented optionally and I could omit the garbage collection.
         ADDRESSES = new Map<Pointer[0], WeakRef<Pointer<any>>>(),
         /*
-         * ID: Generator function to create unique IDs for each pointer.
-         * The address generator will be used to generate unique IDs for each pointer.
-         * The generator is a generator function that returns a generator object.
-         * The generator object is an iterator that will yield a new ID each time it is called.
+         * ADDRESS: Generator function to create unique 'addresses' for each pointer.
+         * Note: This is not be necessary after removing the ADDRESSES Map. I'm leaving it in for now as it may be useful for debugging but I might scrap it later.
          */
-        ID = (function* () {
+        ADDRESS = (function* () {
             var index = 0
             while (true) {
-                if (ADDRESSES.has(index))
-                    while (ADDRESSES.has(index)) {
-                        index++
-                    }
                 yield index
             }
         })(),
@@ -60,49 +54,20 @@ export function Memory(options?: Options) {
     function notifyWatchers<T>(pointer: Pointer<T>) {
         if (WATCHERS.has(pointer)) {
             const observersList = WATCHERS.get(pointer)
-            observersList.forEach((cb: VoidFunction) => cb())
+            observersList.forEach((cb: () => void) => cb())
         }
-    }
-
-    /**
-     * Cleans up dead weak references in the ADDRESSES map.
-     */
-    var gcTimer: Timer
-    function garbageCollect() {
-        clearTimeout(gcTimer)
-        gcTimer = setTimeout(() => {
-            var iterator = ADDRESSES.entries()
-            while (true) {
-                let result = iterator.next()
-                if (result.done) break
-
-                let [id, weakRef] = result.value
-
-                if (weakRef.deref() === undefined) {
-                    // If the weak reference is dead, remove it from the map
-                    ADDRESSES.delete(id)
-                }
-            }
-        }, 100)
     }
 
     /**
      * Allocates memory for a given value and associates it with a unique pointer.
      * @function allocate
      * @param value - The value to be associated with the allocated memory.
-     * @param address - Optional parameter for specifying a custom address for the pointer.
      * @returns {Object} The allocated pointer associated with the given value.
      */
-    function allocate<T = any>(value: T, address?: Address) {
-        // If an address is specified, check if it is already in use
-        if (address !== undefined && ADDRESSES.has(address)) {
-            throw new Error(
-                `Unable to allocate memory at ${address}. Address ${address} in use.`,
-            )
-        }
+    function allocate<T = any>(value: T) {
 
         // Create a new pointer with a unique address (or use the specified address if provided)
-        var nextAddress = address || ID.next().value
+        var nextAddress = ADDRESS.next().value
         // if (address === undefined) {
         //     nextAddress = ID.next().value as number
         //     while (ADDRESSES.has(nextAddress)) {
@@ -131,7 +96,7 @@ export function Memory(options?: Options) {
     /**
      * Deallocates memory associated with a given pointer.
      * @function deallocate
-     * @param pointer - The pointer whose associated memory should be deallocated.
+     * @param pointer - The pointer for the memory to deallocate.
      */
     function deallocate(pointer: Pointer<any>): void {
         // Remove the pointer and its associated value from the MEMORY WeakMap
@@ -146,7 +111,7 @@ export function Memory(options?: Options) {
     /**
      * Retrieves the value associated with a given pointer.
      * @function deref
-     * @param pointer - The pointer whose associated value should be retrieved.
+     * @param pointer - The pointer for the value should be retrieved.
      * @returns The value associated with the specified pointer.
      */
     const deref = <T>(pointer: Pointer<T>): T | undefined => {
@@ -163,7 +128,7 @@ export function Memory(options?: Options) {
     /**
      * Updates the value associated with a given pointer.
      * @function write
-     * @param pointer - The pointer whose associated value should be updated.
+     * @param pointer - The pointer for the value should be updated.
      * @param value - The new value to be associated with the pointer.
      */
     // should be write use set in the quark
@@ -181,8 +146,8 @@ export function Memory(options?: Options) {
      * @returns A function that, when called, unregisters the watcher.
      */
 
-    // function watch<T>(pointer: Pointer<T>, cb: VoidFunction) {
-    function watch<T>(cb: VoidFunction, ...pointers: Pointer<T>[]) {
+    // function watch<T>(pointer: Pointer<T>, cb: () => void) {
+    function watch<T>(cb: Function, ...pointers: Pointer<T>[]) {
         pointers = pointers.length === 0 ? [SCOPE_POINTER] : pointers
 
         pointers.forEach((pointer: Pointer<T>) => {
@@ -222,14 +187,6 @@ export function Memory(options?: Options) {
         return ADDRESSES.get(address)?.deref()
     }
 
-    // If the addressMap option is enabled, watch the global scope for
-    // changes and cleans up dead weak references on the ADDRESSES Map.
-    if (options?.addressMap !== false) {
-        watch(() => {
-            garbageCollect()
-        }, SCOPE_POINTER)
-    }
-
     return {
         allocate,
         deallocate,
@@ -241,13 +198,21 @@ export function Memory(options?: Options) {
 }
 
 // The global scope for the memory module.
-// Unless you need to sync a remote instance of the memory module, where address collisions are possible, just use this scope.
-const GLOBAL_SCOPE = Memory()
+const GLOBAL_SCOPE = block()
 
-// Export the memory module's public API
 export const allocate = GLOBAL_SCOPE.allocate
 export const deallocate = GLOBAL_SCOPE.deallocate
 export const deref = GLOBAL_SCOPE.deref
 export const write = GLOBAL_SCOPE.write
 export const watch = GLOBAL_SCOPE.watch
 export const lookup = GLOBAL_SCOPE.lookup
+
+
+export default {
+    allocate,
+    deallocate,
+    deref,
+    write,
+    watch,
+    lookup,
+}
