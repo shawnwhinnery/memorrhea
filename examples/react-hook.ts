@@ -22,10 +22,7 @@ export function usePointer<T>(pointer: Pointer<T>) {
         }, pointer)
     }, [pointer])
 
-    // Stabalize the reactState and setState so that they don't change on every render
-    return useMemo(() => {
-        return [reactState, setState]
-    }, [reactState, setState])
+    return [reactState, setState]
 }
 
 // More memory efficient than usePointer, simply observes pointers and triggers a re-render when they change.
