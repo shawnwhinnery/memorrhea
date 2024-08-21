@@ -1,17 +1,6 @@
 import { expect, it, spyOn, test } from 'bun:test'
 import { allocate, deallocate, deref, watch, write } from './memory'
 
-test('Address generation', () => {
-    it('should generate unique addresses', () => {
-        var pointer = allocate(1)
-        expect(pointer).toEqual([0])
-        pointer = allocate(1)
-        expect(pointer).toEqual([1])
-        pointer = allocate(1)
-        expect(pointer).toEqual([2])
-    })
-})
-
 test('get', () => {
     var pointer = allocate(1)
     expect(deref<number>(pointer)).toEqual(1)
@@ -26,7 +15,11 @@ test('set', () => {
 test('deallocate', () => {
     var pointer = allocate(1)
     deallocate(pointer)
-    expect(deref(pointer) === undefined).toEqual(true)
+    try {
+        deref(pointer)
+    } catch (e) {
+        expect(e instanceof Error).toEqual(true)
+    }
 })
 
 var cb = {

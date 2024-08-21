@@ -1,21 +1,11 @@
-import { debounce } from './util'
+export type Pointer<T = any> = []
+export interface Options {}
 
 /**
- * Represents a pointer with an associated memory address.
+ * Creates a new memory scope with the specified options.
+ * @function scope
  */
-export type Address = string | number
-export type Pointer<T = any> = [Address]
-
-export interface Options {
-    /**
-     * Set to false to disable indexing addresses on their primitive address.
-     * NOTE: Setting this to false will disable the find function.
-     * @default true
-     */
-    addressMap?: boolean
-}
-
-export function block(options?: Options) {
+export function scope(options?: Options) {
     const /*
          * MEMORY: WeakMap to store associations between pointers and values.
          * WeakMaps don't prevent their keys (pointers in this case) from being garbage
@@ -29,19 +19,6 @@ export function block(options?: Options) {
          * to pointers that are no longer valid.
          */
         WATCHERS = new WeakMap(),
-        // ADDRESSES: Map to store associations between pointer addresses and weak references to pointers.
-        // I may remove this. It isn't really used and could be implemented optionally and I could omit the garbage collection.
-        ADDRESSES = new Map<Pointer[0], WeakRef<Pointer<any>>>(),
-        /*
-         * ADDRESS: Generator function to create unique 'addresses' for each pointer.
-         * Note: This is not be necessary after removing the ADDRESSES Map. I'm leaving it in for now as it may be useful for debugging but I might scrap it later.
-         */
-        ADDRESS = (function* () {
-            var index = 0
-            while (true) {
-                yield index
-            }
-        })(),
         // SCOPE_POINTER: A pointer that is used to watch for changes to the global scope.
         SCOPE_POINTER = allocate(0)
 
@@ -65,29 +42,10 @@ export function block(options?: Options) {
      * @returns {Object} The allocated pointer associated with the given value.
      */
     function allocate<T = any>(value: T) {
-
-        // Create a new pointer with a unique address (or use the specified address if provided)
-        var nextAddress = ADDRESS.next().value
-        // if (address === undefined) {
-        //     nextAddress = ID.next().value as number
-        //     while (ADDRESSES.has(nextAddress)) {
-        //         nextAddress = ID.next().value as number
-        //     }
-        // }
-
-        if (nextAddress === undefined) {
-            throw new Error('Unable to allocate memory. Address is undefined')
-        }
-
-        var pointer: Pointer<T> = [nextAddress]
+        var pointer: Pointer<T> = []
 
         // Store the value in the MEMORY WeakMap, associating it with the pointer
         MEMORY.set(pointer, value)
-
-        // Store a weak reference to the pointer in the ADDRESSES Map, associating it with its address
-        if (options?.addressMap !== false) {
-            ADDRESSES.set(pointer[0], new WeakRef(pointer))
-        }
 
         // Return the allocated pointer
         return pointer
@@ -101,11 +59,6 @@ export function block(options?: Options) {
     function deallocate(pointer: Pointer<any>): void {
         // Remove the pointer and its associated value from the MEMORY WeakMap
         MEMORY.delete(pointer)
-
-        // Remove the weak reference associated with the pointer's address from the ADDRESSES Map
-        if (options?.addressMap !== false) {
-            ADDRESSES.delete(pointer[0])
-        }
     }
 
     /**
@@ -114,15 +67,9 @@ export function block(options?: Options) {
      * @param pointer - The pointer for the value should be retrieved.
      * @returns The value associated with the specified pointer.
      */
-    const deref = <T>(pointer: Pointer<T>): T | undefined => {
-        return MEMORY.has(pointer)
-            ? // Retrieve the value associated with the pointer from the MEMORY WeakMap
-              MEMORY.get(pointer)
-            : // Attempt to look it up in the ADDRESSES Map
-            options?.addressMap !== false
-            ? lookup(pointer[0])
-            // If the addressMap option is disabled, return undefined
-            : undefined
+    const deref = <T>(pointer: Pointer<T>): T => {
+        if (!MEMORY.has(pointer)) throw new Error('Invalid pointer')
+        return MEMORY.get(pointer)
     }
 
     /**
@@ -145,8 +92,6 @@ export function block(options?: Options) {
      * @param cb - The watcher function to be invoked when the pointer's value changes.
      * @returns A function that, when called, unregisters the watcher.
      */
-
-    // function watch<T>(pointer: Pointer<T>, cb: () => void) {
     function watch<T>(cb: Function, ...pointers: Pointer<T>[]) {
         pointers = pointers.length === 0 ? [SCOPE_POINTER] : pointers
 
@@ -172,41 +117,25 @@ export function block(options?: Options) {
         }
     }
 
-    /**
-     * Retrieves a Pointer by its ID from ADDRESSES.
-     * @function lookup
-     * @param address - The address of the pointer to retrieve.
-     * @returns The pointer associated with the given ID, or undefined if not found.
-     */
-    function lookup(address: Address): Pointer<any> | undefined {
-        if (options?.addressMap === false) {
-            throw new Error(
-                'Unable to lookup pointer by address when opotions.AddressMap is set to false.',
-            )
-        }
-        return ADDRESSES.get(address)?.deref()
-    }
-
     return {
         allocate,
         deallocate,
         deref,
         write,
         watch,
-        lookup,
     }
 }
 
-// The global scope for the memory module.
-const GLOBAL_SCOPE = block()
+/**
+ * Although you can create multiple memory scopes, it is recommended to use a single global scope.
+ */
+const GLOBAL_SCOPE = scope()
 
 export const allocate = GLOBAL_SCOPE.allocate
 export const deallocate = GLOBAL_SCOPE.deallocate
 export const deref = GLOBAL_SCOPE.deref
 export const write = GLOBAL_SCOPE.write
 export const watch = GLOBAL_SCOPE.watch
-export const lookup = GLOBAL_SCOPE.lookup
-
 
 export default {
     allocate,
@@ -214,5 +143,4 @@ export default {
     deref,
     write,
     watch,
-    lookup,
 }

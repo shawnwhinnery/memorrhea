@@ -1,4 +1,4 @@
-import { Pointer, allocate, deallocate, deref, watch, write } from '../memory'
+import { Pointer, deref, watch, write } from '../memory'
 
 // An example react hook that syncs a pointer with a React state.
 // I'll probably add this to a separate package later.
@@ -22,6 +22,5 @@ export function usePointer<T>(pointer: Pointer<T>) {
         }, pointer)
     }, [pointer])
 
-    return [reactState, setState]
+    return [reactState, setState] as readonly [T, (value: T) => void]
 }
-
