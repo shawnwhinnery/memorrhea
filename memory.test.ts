@@ -22,6 +22,19 @@ test('deallocate', () => {
     }
 })
 
+test('write lock', () => {
+    var pointer = allocate(1)
+    watch(() => {
+        write(pointer, 2)
+    }, pointer)
+
+    try {
+        write(pointer, 3)
+    } catch (e) {
+        expect(e instanceof Error).toEqual(true)
+    }
+})
+
 var cb = {
         name: 'watch callback',
         cb() {},
